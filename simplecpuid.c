@@ -61,7 +61,7 @@ void RawWinMain(void) {
 
     if (!HasCPUID()) {
         if (IsNx586()) {
-            lstrcpyA(message, "NexGenDriven");
+            lstrcpyA(message, "NexGenDriven");    // Not exactly my name, NexGen Nx586 "CPUID" name
         } else {
             lstrcpyA(message, "CPU does not support CPUID (386/old 486 machine)");
         }
