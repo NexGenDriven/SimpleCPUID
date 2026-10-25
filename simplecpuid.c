@@ -24,8 +24,40 @@ int HasCPUID(void) {
     return supported != 0;
 }
 
+// Tests if EFLAGS Bit 18 (AC flag) can be toggled. 
+int CanToggleAC(void) {
+    int can_toggle = 0;
+    __asm__ __volatile__ (
+        "pushfl\n\t"
+        "pop %%eax\n\t"
+        "mov %%eax, %%ecx\n\t"
+        "xor $0x00040000, %%eax\n\t"
+        "push %%eax\n\t"
+        "popfl\n\t"
+        "pushfl\n\t"
+        "pop %%eax\n\t"
+        "xor %%ecx, %%eax\n\t"
+        "and $0x00040000, %%eax\n\t"
+        "mov %%eax, %0\n\t"
+        "push %%ecx\n\t"
+        "popfl\n\t"
+        : "=r" (can_toggle)
+        :
+        : "eax", "ecx", "cc"
+    );
+    return can_toggle != 0;
+}
+
 // Check for Nx586
-int IsNx586(void) {
+int IsNx586(int has_cpuid) {
+    if (has_cpuid) {
+        return 0;
+    }
+
+    if (CanToggleAC()) {
+        return 0;
+    }
+
     int is_nexgen = 0;
     __asm__ __volatile__ (
         "movl $0x5555, %%eax\n\t"
@@ -57,17 +89,25 @@ void GetCPUIDVendor(char *vendor) {
 }
 
 void RawWinMain(void) {
-    char message[128];
+    char message[256];
+    int has_cpuid = HasCPUID();
+    int is_nx586 = IsNx586(has_cpuid);
 
-    if (!HasCPUID()) {
-        if (IsNx586()) {
-            lstrcpyA(message, "NexGenDriven");    // Not exactly my name, NexGen Nx586 "CPUID" name
+    if (!has_cpuid) {
+        if (is_nx586) {
+            lstrcpyA(message, "NexGenDriven");
         } else {
             lstrcpyA(message, "CPU does not support CPUID (386/old 486 machine)");
         }
     } else {
         GetCPUIDVendor(message);
     }
+
+    lstrcatA(message, "\n\n(CPUID = ");
+    lstrcatA(message, has_cpuid ? "PASS" : "FAIL");
+    lstrcatA(message, ", NX586 = ");
+    lstrcatA(message, is_nx586 ? "PASS" : "FAIL");
+    lstrcatA(message, ")");
 
     MessageBoxA(NULL, message, "SimpleCPUID", MB_OK | MB_ICONINFORMATION);
     ExitProcess(0);
